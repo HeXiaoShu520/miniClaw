@@ -8,14 +8,14 @@ ENABLED = True
 
 TOOL_DEF = {
     "name": "image_to_mermaid",
-    "description": "当用户要求把图片转换/识别成 Mermaid 图表、流程图、时序图等代码时，必须调用此工具处理，而不是直接回复。",
+    "description": "当用户要求把图片转换/识别成 Mermaid 图表、流程图、时序图等代码时，必须调用此工具处理，而不是直接回复。无需提供任何参数，直接调用即可。",
     "input_schema": {
         "type": "object",
         "properties": {
             "message_id": {"type": "string", "description": "飞书消息 ID"},
             "image_key": {"type": "string", "description": "图片 key"}
         },
-        "required": ["message_id", "image_key"]
+        "required": []
     }
 }
 
