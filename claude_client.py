@@ -38,8 +38,10 @@ class AnthropicClient(AIClient):
             async for text in stream.text_stream:
                 yield text
 
-    async def create_with_tools(self, messages: list[dict], tools: list[dict]) -> dict:
+    async def create_with_tools(self, messages: list[dict], tools: list[dict], system: str = None) -> dict:
         kwargs = {"model": self.model, "max_tokens": 4096, "messages": messages, "tools": tools}
+        if system:
+            kwargs["system"] = system
         response = await self.client.messages.create(**kwargs)
 
         tool_use = next((b for b in response.content if b.type == "tool_use"), None)
