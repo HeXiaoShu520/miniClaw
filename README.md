@@ -1,6 +1,6 @@
-# ACP Link - 飞书 AI 机器人
+# MiniClaw飞书 AI 机器人
 
-飞书 × AI 桥接服务，支持 **Anthropic Claude** 和 **OpenAI** 双 provider，基于 function calling 的技能路由架构。
+飞书AI机器人，支持 **Anthropic Claude** 和 **OpenAI** 双 provider，基于 function calling 的技能路由架构。
 
 ## 功能特性
 
