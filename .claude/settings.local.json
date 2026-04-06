@@ -16,7 +16,17 @@
       "Bash(lark-cli --help)",
       "Bash(lark-cli calendar:*)",
       "Bash(lark-cli task:*)",
-      "Bash(lark-cli docs:*)"
+      "Bash(lark-cli docs:*)",
+      "Bash(lark-cli contact:*)",
+      "Bash(lark-cli sheets:*)",
+      "Bash(lark-cli mail:*)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d[''''data''''][''''markdown'''']\\)\")",
+      "Bash(lark-cli base:*)",
+      "Bash(lark-cli wiki:*)",
+      "Bash(lark-cli drive:*)",
+      "Bash(lark-cli vc:*)",
+      "Bash(lark-cli approval:*)",
+      "Bash(lark-cli api:*)"
     ]
   }
 }
