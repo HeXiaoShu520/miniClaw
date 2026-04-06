@@ -6,6 +6,7 @@ import asyncio
 import base64
 import json
 import logging
+import random
 import re
 import zlib
 from pathlib import Path
@@ -166,91 +167,84 @@ class LinkService:
         """处理单条消息的实际逻辑"""
         logging.info(f"收到消息: {msg.message_id}")
         logging.info(f"消息内容: {msg.content}")
+        print(f"[发送者 open_id] {msg.sender_id}")
 
-        # 判断消息类型
-        msg_type = msg.content.get("msg_type", "")
-        is_text = msg_type == "text"
-        is_image = msg_type == "image"
-        is_post = msg_type == "post"
-
-        # 提取图片 key 和文本
-        image_key = None
-        text = None
+        # 添加表情回应（表示正在处理）
+        reaction_id = None
+        if self.config.emoji_types:
+            emoji = random.choice(self.config.emoji_types)
+            reaction_id = await self.feishu.add_reaction(msg.message_id, emoji)
 
         try:
-            content_obj = json.loads(msg.content.get("content", "{}"))
-        except Exception:
-            content_obj = {}
+            # 判断消息类型
+            msg_type = msg.content.get("msg_type", "")
+            is_text = msg_type == "text"
+            is_image = msg_type == "image"
+            is_post = msg_type == "post"
 
-        if is_text:
-            text = content_obj.get("text", "")
-        elif is_image:
-            image_key = content_obj.get("image_key")
-        elif is_post:
-            # post 格式有两种：
-            # 1. {"zh_cn": {"content": [[...]]}}
-            # 2. {"title": "", "content": [[...]]}  (直接格式)
-            texts, image_keys = [], []
-            if "content" in content_obj and isinstance(content_obj["content"], list):
-                lang_content = content_obj
-            else:
-                lang_content = content_obj.get("zh_cn") or content_obj.get("en_us") or next(iter(content_obj.values()), {})
-                if isinstance(lang_content, str):
-                    try:
-                        lang_content = json.loads(lang_content)
-                    except Exception:
-                        lang_content = {}
-            for line in lang_content.get("content", []):
-                for block in line:
-                    if block.get("tag") == "text":
-                        texts.append(block.get("text", ""))
-                    elif block.get("tag") == "img":
-                        image_keys.append(block.get("image_key"))
-            text = "".join(texts).strip() or None
-            image_key = image_keys[0] if image_keys else None
+            # 提取图片 key 和文本
+            image_key = None
+            text = None
 
-        # 如果是单聊且不使用话题，我们用 chat_id + sender_id 作为会话 ID，使得同一个人在这个群聊/单聊内享有独立的上下文
-        conv_key = f"{msg.chat_id}:{msg.sender_id}"
-        if msg.topic_id and self.config.use_topic_reply:
-            conv_key = msg.topic_id
+            try:
+                content_obj = json.loads(msg.content.get("content", "{}"))
+            except Exception:
+                content_obj = {}
 
-        # 纯图片消息：用占位文本触发 agent
-        if is_image and image_key and not text:
-            text = "[图片]"
+            if is_text:
+                text = content_obj.get("text", "")
+            elif is_image:
+                image_key = content_obj.get("image_key")
+            elif is_post:
+                # post 格式有两种：
+                # 1. {"zh_cn": {"content": [[...]]}}
+                # 2. {"title": "", "content": [[...]]}  (直接格式)
+                texts, image_keys = [], []
+                if "content" in content_obj and isinstance(content_obj["content"], list):
+                    lang_content = content_obj
+                else:
+                    lang_content = content_obj.get("zh_cn") or content_obj.get("en_us") or next(iter(content_obj.values()), {})
+                    if isinstance(lang_content, str):
+                        try:
+                            lang_content = json.loads(lang_content)
+                        except Exception:
+                            lang_content = {}
+                for line in lang_content.get("content", []):
+                    for block in line:
+                        if block.get("tag") == "text":
+                            texts.append(block.get("text", ""))
+                        elif block.get("tag") == "img":
+                            image_keys.append(block.get("image_key"))
+                text = "".join(texts).strip() or None
+                image_key = image_keys[0] if image_keys else None
 
-        # 检查是否是对待处理图片的选择指令
-        pending = self.pending_images.get(conv_key)
-        image_message_id = None  # 图片所在消息的ID（用于下载）
-        if pending and text and text.strip() in ("1", "2"):
-            choice = text.strip()
-            self.pending_images.pop(conv_key, None)
-            image_key = pending["image_key"]
-            image_message_id = pending["message_id"]
-            text = "请将图片转换为 Mermaid 图表代码" if choice == "1" else "请描述这张图片的内容"
+            # 如果是单聊且不使用话题，我们用 chat_id + sender_id 作为会话 ID，使得同一个人在这个群聊/单聊内享有独立的上下文
+            conv_key = f"{msg.chat_id}:{msg.sender_id}"
+            if msg.topic_id and self.config.use_topic_reply:
+                conv_key = msg.topic_id
 
-        # 处理会话逻辑
-        if not msg.topic_id:
-            # 新会话
-            reply_msg_id, thread_id = await self.feishu.reply_message(
-                msg.message_id, "...", self.config.use_topic_reply
-            )
-            if self.config.use_topic_reply:
-                self.session_map[msg.message_id] = thread_id
-                self._save_sessions()
-                conv_key = thread_id
+            # 纯图片消息：用占位文本触发 agent
+            if is_image and image_key and not text:
+                text = "[图片]"
 
-            if text:
-                await self._stream_reply(conv_key, reply_msg_id, msg.chat_id, text, is_new=True,
-                                         image_key=image_key, message_id=image_message_id or msg.message_id)
-        else:
-            # 已有会话
-            thread_id = self.session_map.get(msg.topic_id) if self.config.use_topic_reply else msg.topic_id
-            if not thread_id:
+            # 检查是否是对待处理图片的选择指令
+            pending = self.pending_images.get(conv_key)
+            image_message_id = None  # 图片所在消息的ID（用于下载）
+            if pending and text and text.strip() in ("1", "2"):
+                choice = text.strip()
+                self.pending_images.pop(conv_key, None)
+                image_key = pending["image_key"]
+                image_message_id = pending["message_id"]
+                text = "请将图片转换为 Mermaid 图表代码" if choice == "1" else "请描述这张图片的内容"
+
+            # 处理会话逻辑
+            if not msg.topic_id:
+                # 新会话
                 reply_msg_id, thread_id = await self.feishu.reply_message(
                     msg.message_id, "...", self.config.use_topic_reply
                 )
                 if self.config.use_topic_reply:
-                    self.session_map[msg.topic_id] = thread_id
+                    self.session_map[msg.message_id] = thread_id
                     self._save_sessions()
                     conv_key = thread_id
 
@@ -258,15 +252,34 @@ class LinkService:
                     await self._stream_reply(conv_key, reply_msg_id, msg.chat_id, text, is_new=True,
                                              image_key=image_key, message_id=image_message_id or msg.message_id)
             else:
-                if self.config.use_topic_reply:
-                    conv_key = thread_id
-
-                if text:
-                    reply_msg_id, _ = await self.feishu.reply_message(
+                # 已有会话
+                thread_id = self.session_map.get(msg.topic_id) if self.config.use_topic_reply else msg.topic_id
+                if not thread_id:
+                    reply_msg_id, thread_id = await self.feishu.reply_message(
                         msg.message_id, "...", self.config.use_topic_reply
                     )
-                    await self._stream_reply(conv_key, reply_msg_id, msg.chat_id, text, is_new=False,
-                                             image_key=image_key, message_id=image_message_id or msg.message_id)
+                    if self.config.use_topic_reply:
+                        self.session_map[msg.topic_id] = thread_id
+                        self._save_sessions()
+                        conv_key = thread_id
+
+                    if text:
+                        await self._stream_reply(conv_key, reply_msg_id, msg.chat_id, text, is_new=True,
+                                                 image_key=image_key, message_id=image_message_id or msg.message_id)
+                else:
+                    if self.config.use_topic_reply:
+                        conv_key = thread_id
+
+                    if text:
+                        reply_msg_id, _ = await self.feishu.reply_message(
+                            msg.message_id, "...", self.config.use_topic_reply
+                        )
+                        await self._stream_reply(conv_key, reply_msg_id, msg.chat_id, text, is_new=False,
+                                                 image_key=image_key, message_id=image_message_id or msg.message_id)
+        finally:
+            # 移除表情回应
+            if reaction_id:
+                await self.feishu.remove_reaction(msg.message_id, reaction_id)
 
     def _detect_image_mime(self, data: bytes) -> str:
         """

@@ -150,6 +150,13 @@ async def main():
 
     logging.info("服务启动成功")
 
+    # 通知管理员上线
+    if config.admin_open_id and config.admin_online_msg:
+        try:
+            await feishu.send_text_to_user(config.admin_open_id, config.admin_online_msg)
+        except Exception as e:
+            logging.warning(f"通知管理员上线失败: {e}")
+
     # 启动 WebSocket 监听（自动重连）
     async def run_ws():
         """WebSocket 监听任务，断线自动重连"""
@@ -185,6 +192,14 @@ async def main():
     # 清理资源
     cleanup_task.cancel()
     service.save_sessions()
+
+    # 通知管理员下线
+    if config.admin_open_id and config.admin_offline_msg:
+        try:
+            await feishu.send_text_to_user(config.admin_open_id, config.admin_offline_msg)
+        except Exception as e:
+            logging.warning(f"通知管理员下线失败: {e}")
+
     await feishu.close()
 
 

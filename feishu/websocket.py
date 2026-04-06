@@ -140,7 +140,7 @@ class FeishuWebSocket:
             message_id=message.get("message_id", ""),
             chat_id=message.get("chat_id", ""),
             chat_type=message.get("chat_type", ""),
-            sender_id=event.get("sender", {}).get("sender_id", {}).get("user_id", ""),
+            sender_id=event.get("sender", {}).get("sender_id", {}).get("open_id", ""),
             content={"msg_type": message.get("message_type"), "content": message.get("content")},
             timestamp=int(message.get("create_time", 0)),
             topic_id=message.get("parent_id")

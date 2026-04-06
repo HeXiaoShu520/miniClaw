@@ -4,7 +4,15 @@
       "Bash(gh auth:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "mcp__web-reader__webReader",
+      "Bash(npm --version)",
+      "Bash(npm install:*)",
+      "Bash(npx skills:*)",
+      "Bash(lark-cli config:*)",
+      "Bash(lark-cli auth:*)",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); keys=list\\(data.keys\\(\\)\\)[:3]; [print\\(k, json.dumps\\(data[k][:1]\\)\\) for k in keys]\")",
+      "Bash(lark-cli im:*)"
     ]
   }
 }

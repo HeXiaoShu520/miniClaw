@@ -39,6 +39,10 @@ class AppConfig(BaseModel):
     max_history_turns: int = 10
     system_prompt: str | None = None
     ai_provider: str = "anthropic"  # "anthropic" 或 "openai"
+    emoji_types: list[str] = ["THINKING"]
+    admin_open_id: str | None = None
+    admin_online_msg: str | None = "✅ 机器人已上线"
+    admin_offline_msg: str | None = "⚠️ 机器人已下线"
     feishu: FeishuConfig
     claude: ClaudeConfig | None = None
     openai: OpenAIConfig | None = None
@@ -67,6 +71,10 @@ class AppConfig(BaseModel):
             max_history_turns=int(env_vars.get("MAX_HISTORY_TURNS", "10")),
             system_prompt=env_vars.get("SYSTEM_PROMPT"),
             ai_provider=env_vars.get("AI_PROVIDER", "anthropic").lower(),
+            emoji_types=[e.strip() for e in env_vars.get("EMOJI_TYPES", "THINKING").split(",") if e.strip()],
+            admin_open_id=env_vars.get("ADMIN_OPEN_ID") or None,
+            admin_online_msg=env_vars.get("ADMIN_ONLINE_MSG") or None,
+            admin_offline_msg=env_vars.get("ADMIN_OFFLINE_MSG") or None,
             feishu=FeishuConfig(
                 app_id=env_vars["FEISHU_APP_ID"],
                 app_secret=env_vars["FEISHU_APP_SECRET"]

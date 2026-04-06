@@ -196,6 +196,39 @@ class FeishuClient:
 
         return messages
 
+    async def add_reaction(self, message_id: str, emoji_type: str):
+        """给消息添加表情回应"""
+        req = CreateMessageReactionRequest.builder().message_id(message_id).request_body(
+            CreateMessageReactionRequestBody.builder()
+            .reaction_type(EmojiType.builder().emoji_type(emoji_type).build())
+            .build()
+        ).build()
+        resp = self.client.im.v1.message_reaction.create(req)
+        if not resp.success():
+            logging.warning(f"添加表情失败: {resp.code}, {resp.msg}")
+            return None
+        return resp.data.reaction_id
+
+    async def remove_reaction(self, message_id: str, reaction_id: str):
+        """移除消息表情回应"""
+        req = DeleteMessageReactionRequest.builder().message_id(message_id).reaction_id(reaction_id).build()
+        resp = self.client.im.v1.message_reaction.delete(req)
+        if not resp.success():
+            logging.warning(f"移除表情失败: {resp.code}, {resp.msg}")
+
+    async def send_text_to_user(self, open_id: str, text: str):
+        """给指定用户发送文本消息"""
+        req = CreateMessageRequest.builder().receive_id_type("open_id").request_body(
+            CreateMessageRequestBody.builder()
+            .receive_id(open_id)
+            .msg_type("text")
+            .content(json.dumps({"text": text}))
+            .build()
+        ).build()
+        resp = self.client.im.v1.message.create(req)
+        if not resp.success():
+            logging.error(f"发送消息给用户失败: {resp.code}, {resp.msg}")
+
     async def send_audio(self, chat_id: str, audio_data: bytes) -> str:
         """上传音频并发送到会话，返回消息 ID"""
         token = await self.get_access_token()

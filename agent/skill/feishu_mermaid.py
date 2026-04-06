@@ -4,7 +4,7 @@ import json
 import re
 import zlib
 
-ENABLED = True
+ENABLED = False
 
 TOOL_DEF = {
     "name": "image_to_mermaid",
