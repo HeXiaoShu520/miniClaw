@@ -3,9 +3,11 @@
 负责处理飞书消息、管理会话、调用 Claude API、处理云文档链接等核心业务逻辑
 """
 import asyncio
+import base64
 import json
 import logging
 import re
+import zlib
 from pathlib import Path
 from typing import Dict, List
 from datetime import datetime, timedelta
@@ -16,6 +18,26 @@ from feishu.feishu_api import FeishuClient, ImMessage
 from store.resource_store import ResourceStore
 from feishu.doc_client import FeishuDocClient
 from agent.feishu_chat import FeishuChatAgent
+
+
+def _mermaid_url(code: str) -> str:
+    state = json.dumps({"code": code, "mermaid": {"theme": "default"}, "autoSync": True, "updateDiagram": True})
+    compressed = zlib.compress(state.encode("utf-8"), level=9)
+    raw_deflate = compressed[2:-4]
+    b64 = base64.urlsafe_b64encode(raw_deflate).decode("ascii")
+    return f"https://mermaid.ai/play#pako:{b64}"
+
+
+def _append_mermaid_links(text: str) -> str:
+    """检测回复中的 mermaid 代码块，追加在线可视化链接"""
+    pattern = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
+    links = []
+    for m in pattern.finditer(text):
+        code = m.group(1).strip()
+        links.append(f"在线可视化编辑：{_mermaid_url(code)}")
+    if links:
+        text = text + "\n\n" + "\n".join(links)
+    return text
 
 
 class LinkService:
@@ -422,6 +444,8 @@ class LinkService:
                 logging.info(f"Agent 处理完成，总长度: {len(full_text)}")
 
             logging.info(f"大模型响应内容: {full_text.strip()[:100]}")
+
+            full_text = _append_mermaid_links(full_text)
 
             # 最终更新消息，并把它当做 assistant 存起来！
             if full_text.strip():

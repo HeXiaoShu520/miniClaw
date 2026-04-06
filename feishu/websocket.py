@@ -106,9 +106,9 @@ class FeishuWebSocket:
                             if data.get("header", {}).get("event_type") == "im.message.receive_v1":
                                 msg = self._parse_message(data)
                                 if msg:
-                                    # 消息去重（30分钟窗口）
+                                    # 消息去重（1天窗口）
                                     now = datetime.now()
-                                    cutoff = now - timedelta(minutes=30)
+                                    cutoff = now - timedelta(days=1)
                                     self.seen_ids = {k: v for k, v in self.seen_ids.items()
                                                     if datetime.fromisoformat(v) > cutoff}
 
