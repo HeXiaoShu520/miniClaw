@@ -170,6 +170,7 @@ lark-cli wiki spaces list
 
 # 列出知识库节点
 lark-cli wiki nodes list --params '{"space_id":"7613842045064449226"}'
+#cmd里要转义： lark-cli wiki nodes list --params "{\"space_id\":\"7613842045064449226\"}"
 ```
 
 ---
