@@ -65,6 +65,10 @@ TOOL_DEF = {
             "due": {
                 "type": "string",
                 "description": "任务截止时间，ISO 8601 格式（create_task 时可选）"
+            },
+            "notify_user_id": {
+                "type": "string",
+                "description": "创建任务/日程后，将结果链接发送给该用户的 open_id（可选）"
             }
         },
         "required": ["action"]
@@ -97,6 +101,7 @@ async def execute(
     description: str = "",
     attendees: Optional[list] = None,
     due: str = "",
+    notify_user_id: str = "",
 ) -> str:
     try:
         if action == "send_message":
@@ -108,7 +113,7 @@ async def execute(
         elif action == "get_agenda":
             args = ["calendar", "+agenda"]
             if date:
-                args += ["--date", date]
+                args += ["--start", f"{date}T00:00:00+08:00", "--end", f"{date}T23:59:59+08:00"]
             result = await _run(args)
             return json.dumps(result, ensure_ascii=False, indent=2)
 
@@ -121,6 +126,10 @@ async def execute(
             if attendees:
                 args += ["--attendees", ",".join(attendees)]
             result = await _run(args)
+            event_link = result.get("data", {}).get("app_link", "")
+            if notify_user_id and event_link:
+                await _run(["im", "+messages-send", "--user-id", notify_user_id,
+                            "--text", f"📅 日程已创建：{summary}\n🕐 {start} ~ {end}\n🔗 {event_link}"], no_format=True)
             return f"日程已创建：{json.dumps(result, ensure_ascii=False)}"
 
         elif action == "create_task":
@@ -132,6 +141,10 @@ async def execute(
             if description:
                 args += ["--description", description]
             result = await _run(args)
+            task_url = result.get("data", {}).get("url", "")
+            if notify_user_id and task_url:
+                await _run(["im", "+messages-send", "--user-id", notify_user_id,
+                            "--text", f"✅ 任务已创建：{summary}\n🔗 {task_url}"], no_format=True)
             return f"任务已创建：{json.dumps(result, ensure_ascii=False)}"
 
         elif action == "query_freebusy":
@@ -139,7 +152,7 @@ async def execute(
                 return "缺少 user_id 参数"
             args = ["calendar", "+freebusy", "--user-id", user_id]
             if date:
-                args += ["--date", date]
+                args += ["--start", f"{date}T00:00:00+08:00", "--end", f"{date}T23:59:59+08:00"]
             result = await _run(args)
             return json.dumps(result, ensure_ascii=False, indent=2)
 
