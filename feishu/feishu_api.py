@@ -10,6 +10,7 @@ from typing import Optional, List, Dict
 from dataclasses import dataclass
 from lark_oapi import Client
 from lark_oapi.api.im.v1 import *
+from lark_oapi.api.im.v1.model.emoji import Emoji
 
 
 @dataclass
@@ -200,7 +201,7 @@ class FeishuClient:
         """给消息添加表情回应"""
         req = CreateMessageReactionRequest.builder().message_id(message_id).request_body(
             CreateMessageReactionRequestBody.builder()
-            .reaction_type(EmojiType.builder().emoji_type(emoji_type).build())
+            .reaction_type(Emoji.builder().emoji_type(emoji_type).build())
             .build()
         ).build()
         resp = self.client.im.v1.message_reaction.create(req)

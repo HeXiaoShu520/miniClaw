@@ -26,7 +26,17 @@
       "Bash(lark-cli drive:*)",
       "Bash(lark-cli vc:*)",
       "Bash(lark-cli approval:*)",
-      "Bash(lark-cli api:*)"
+      "Bash(lark-cli api:*)",
+      "mcp__bocha-search__web_search",
+      "Bash(curl -s https://api.github.com/repos/LorisYounger/VPet)",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=desktop+pet+python+language:python&sort=stars&order=desc\")",
+      "Bash(curl -s \"https://api.github.com/repos/JodieRuth/Resona-Desktop-Pet\")",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=desktop+pet+AI+chat+language:python&sort=stars&order=desc\")",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=live2d+desktop+pet+chat&sort=stars&order=desc\")",
+      "Bash(curl -s \"https://api.github.com/repos/kirbystudy/chatgpt-desktopPet\")",
+      "Bash(curl -s \"https://api.github.com/repos/ccbili30-collab/gugu-desktop-pet\")",
+      "Bash(python -c \"import lark_oapi; import subprocess; import sys; result = subprocess.run\\([sys.executable, '-c', 'import pkgutil, lark_oapi; [print\\(m.name\\) for m in pkgutil.walk_packages\\(lark_oapi.__path__, lark_oapi.__name__+\\\\\".\\\\\"\\) if \\\\\"emoji\\\\\" in m.name.lower\\(\\) or \\\\\"reaction\\\\\" in m.name.lower\\(\\)]'], capture_output=True, text=True\\); print\\(result.stdout\\); print\\(result.stderr\\)\")",
+      "Bash(python -c \"from lark_oapi.api.im.v1.model.emoji import *; import lark_oapi.api.im.v1.model.emoji as m; print\\(dir\\(m\\)\\)\")"
     ]
   }
 }
