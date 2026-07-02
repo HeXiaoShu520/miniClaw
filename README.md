@@ -1,168 +1,334 @@
-# MiniClaw飞书 AI 机器人
+# miniClaw / DyberPet 桌面 AI 宠物
 
-飞书AI机器人，支持 **Anthropic Claude** 和 **OpenAI** 双 provider，基于 function calling 的技能路由架构。
+本项目当前定位：**独立桌面 AI 宠物 + 可选外部事件接口 + 可选飞书插件后端**。
 
-## 功能特性
+DyberPet 不是飞书的附属通知窗口。它首先是一个可以独立运行的桌面宠物软件：能陪聊、提醒、展示事件气泡、根据事件做动作；miniClaw / 飞书 / GitHub / 本地脚本等都只是它的外部事件源。
 
-- 飞书 WebSocket 实时消息监听
-- 双 AI Provider 支持（Anthropic / OpenAI，`.env` 一键切换）
-- Agent 技能路由（基于 function calling 自动分发）
-- 流式 / 非流式回复（可配置）
-- 话题回复支持（可配置）
-- 图片识别（下载飞书图片 → AI 视觉理解）
-- Mermaid 自动链接（回复含 mermaid 代码块时，自动追加 mermaid.ai 在线可视化编辑链接）
-- 飞书云文档提取（知识库 / docx / doc）
-- HTTP API 接口（MCP Server）（已移除）
-- 多轮对话上下文管理（本地持久化）
-- 消息去重（持久化 seen_ids）
-- 定时清理过期数据
+## 产品定位
+
+一句话：
+
+> 一个住在桌面上的 AI 宠物外设，能陪你聊天、提醒你做事、接收外部软件事件，并用动作和气泡表现当前状态。
+
+核心方向：
+
+- **独立可用**：不接飞书、不启动 miniClaw，也能作为桌面 AI 宠物使用。
+- **事件驱动**：外部软件通过统一协议把消息、提醒、动作事件推给宠物。
+- **人格化交互**：大模型配置 + 角色设定，让不同宠物拥有不同性格。
+- **轻量工作流**：气泡按钮可以把用户选择回传给外部服务，例如发送回复、稍后提醒、忽略。
+- **插件化扩展**：飞书只是第一个插件方向，后续可接 GitHub、日历、邮件、CI、本地脚本等。
+
+## 当前已实现能力
+
+### DyberPet 桌面客户端
+
+- 右键菜单新增 **Chat / 聊天**。
+- 新增独立 AI 聊天窗口。
+- 新增 **大模型设置** 页面：API 地址、API Key、模型名、最大 Token、System Prompt。
+- 支持 OpenAI 兼容接口，适配 OpenAI / DeepSeek / 通义 / Kimi / 本地 ollama 等。
+- 右键菜单新增 **Fetch Back / 找回宠物**，用于把跑到屏幕外的宠物拉回主屏。
+- 新增智能事件气泡：标题、发送人、摘要、建议、最多 3 个操作按钮。
+- 新增通用外部事件入口：DyberPet 可监听 `ws://localhost:18888/ws/pet`。
+- 气泡按钮点击后可选回调 `POST http://localhost:18888/actions/execute`。
+- 启动入口已修正工作目录，支持从项目根目录直接运行 `DyberPet-main/run_DyberPet.py`。
+
+### miniClaw 后端
+
+- 当前仍保留原飞书 AI 机器人能力。
+- 后续作为 DyberPet 的可选事件源和飞书插件后端。
+- 负责连接飞书、分析消息、生成建议、执行飞书动作。
+
+## 总体架构
+
+```text
+┌──────────────────────────┐
+│        外部事件源          │
+│ 飞书 / GitHub / 日历 / CI │
+│ 本地脚本 / 其他应用        │
+└─────────────┬────────────┘
+              │ 通用事件协议
+              │ WebSocket / HTTP
+              ▼
+┌──────────────────────────┐
+│          miniClaw         │  可选
+│ 事件接收 / AI 分析 / 动作执行 │
+│ 飞书插件 / 未来插件网关      │
+└─────────────┬────────────┘
+              │ ws://localhost:18888/ws/pet
+              ▼
+┌──────────────────────────┐
+│          DyberPet         │
+│ 桌面宠物 / 气泡 / 动作 / AI聊天 │
+│ 独立运行，不依赖 miniClaw     │
+└──────────────────────────┘
+```
+
+分层：
+
+1. **宠物本体层**
+   - 动画
+   - 气泡
+   - 通知
+   - 右键菜单
+   - 找回宠物
+   - 设置面板
+
+2. **AI 能力层**
+   - 大模型配置
+   - 独立聊天窗口
+   - 角色设定 / System Prompt
+   - 后续：剪贴板总结、文本改写、日报生成、本地复盘
+
+3. **事件接口层**
+   - WebSocket 接收外部事件
+   - 智能气泡展示
+   - 宠物动作触发
+   - 按钮动作回调
+
+4. **插件后端层**
+   - miniClaw
+   - 飞书插件
+   - 未来 GitHub / 日历 / 邮件 / CI 插件
 
 ## 技术栈
 
-- **Anthropic SDK** / **OpenAI SDK** - AI 对话
-- **FastAPI** - HTTP API 服务
-- **WebSocket** - 飞书实时消息
-- **Pydantic** - 配置与数据验证
+### DyberPet 客户端
+
+- Python
+- PySide6
+- qfluentwidgets
+- WebSocket client
+- OpenAI 兼容 Chat Completions API
+- 本地 JSON 配置与存储
+
+### miniClaw 后端
+
+- Python
+- FastAPI
+- WebSocket
+- Anthropic SDK / OpenAI SDK
+- 飞书 WebSocket 事件监听
+- Function Calling 技能路由
+- 本地历史与资源存储
+
+## 目录结构
+
+```text
+miniClaw/
+├── README.md                         # 当前总览与路线
+├── FEISHU_PET_DESIGN.md              # 飞书插件方向设计文档
+├── main.py                           # miniClaw 后端入口
+├── link_service.py                   # miniClaw 核心消息处理
+├── config.py                         # 后端配置
+├── agent/                            # Agent 技能系统
+├── feishu/                           # 飞书 API / WS / 文档能力
+├── store/                            # 本地资源存储
+└── DyberPet-main/
+    ├── run_DyberPet.py               # DyberPet 启动入口
+    ├── PET_EVENT_PROTOCOL.md         # 通用宠物事件协议
+    └── DyberPet/
+        ├── DyberPet.py               # 宠物主窗口与右键菜单
+        ├── Notification.py           # 通知、普通气泡、智能气泡
+        ├── miniclaw_client.py        # 外部事件 WebSocket 客户端
+        ├── chat_window.py            # 独立 AI 聊天窗口
+        ├── llm_client.py             # OpenAI 兼容 LLM 客户端
+        └── DyberSettings/
+            ├── DyberControlPanel.py  # 设置面板主窗口
+            └── LLMSettingUI.py       # 大模型设置页
+```
+
+## 通用事件协议
+
+完整协议见：[DyberPet-main/PET_EVENT_PROTOCOL.md](DyberPet-main/PET_EVENT_PROTOCOL.md)
+
+最常用的 `message` 事件：
+
+```json
+{
+  "type": "message",
+  "title": "产品群",
+  "sender": "张三",
+  "content": "下午四点能给个方案吗？",
+  "summary": "产品群在催方案",
+  "suggestion": "可以，我四点前发初版。",
+  "priority": "high",
+  "is_at_me": true,
+  "pet_action": "alert",
+  "timeout": 12,
+  "actions": [
+    { "id": "send", "type": "send_message", "label": "发送建议" },
+    { "id": "later", "type": "later", "label": "稍后处理" },
+    { "id": "ignore", "type": "ignore", "label": "忽略" }
+  ]
+}
+```
+
+DyberPet 对事件的处理原则：
+
+- `message`：显示智能气泡，并按优先级触发宠物动作。
+- `bubble`：显示普通文本气泡。
+- `action`：只触发宠物动作。
+- 用户点击按钮时：尝试回调 `/actions/execute`，失败不影响 DyberPet 独立运行。
+
+## 预期特性路线
+
+### v0.1 独立宠物基础版
+
+目标：不依赖飞书，先让 DyberPet 作为独立软件成立。
+
+- [x] 独立聊天窗口
+- [x] 大模型设置
+- [x] 找回宠物
+- [x] 通用事件 WebSocket 客户端
+- [x] 智能气泡
+- [x] 气泡按钮回调
+- [ ] 本地提醒功能
+- [ ] 今日待办功能
+- [ ] 本地复盘窗口
+- [ ] 托盘菜单显示连接状态
+
+### v0.2 桌面 AI 助手版
+
+目标：让宠物具备常用桌面 AI 工具能力。
+
+- [ ] 总结剪贴板
+- [ ] 改写剪贴板文本
+- [ ] 翻译选中文本 / 剪贴板
+- [ ] 解释报错
+- [ ] 生成日报草稿
+- [ ] 快速记笔记
+- [ ] 角色模板：萌妹 / 温柔秘书 / 毒舌监督 / 严肃 PM
+- [ ] 按角色保存不同 System Prompt
+
+### v0.3 事件外设版
+
+目标：让任何软件都能把状态推给宠物。
+
+- [ ] miniClaw mock 推送工具
+- [ ] HTTP 本地事件接收端点
+- [ ] 本地脚本 CLI：`petctl send ...`
+- [ ] 事件历史记录
+- [ ] 事件过滤规则
+- [ ] 优先级策略：普通 / 高优先级 / 紧急
+- [ ] 状态映射：空闲 / 忙碌 / 焦虑 / 开心 / 警报
+
+### v0.4 飞书插件版
+
+目标：把飞书作为一个插件接进来，而不是强绑定 DyberPet。
+
+- [ ] 飞书消息转通用宠物事件
+- [ ] AI 生成摘要和建议回复
+- [ ] 点击气泡按钮发送飞书回复
+- [ ] 自动提取待办和承诺
+- [ ] 晚间飞书复盘
+- [ ] 飞书任务同步
+- [ ] 会议前提醒与会议后收尾
+
+### v0.5 插件生态版
+
+目标：让宠物成为桌面事件中枢。
+
+- [ ] GitHub PR / CI 插件
+- [ ] 日历提醒插件
+- [ ] 邮件提醒插件
+- [ ] 本地命令完成提醒
+- [ ] 自定义插件配置
+- [ ] 插件市场或插件目录规范
+
+## 技术路线
+
+### 近期优先级
+
+1. **稳定 DyberPet 独立能力**
+   - 聊天窗口可用
+   - LLM 配置可用
+   - 本地提醒和待办可用
+   - 不启动 miniClaw 也能正常运行
+
+2. **补齐事件输入闭环**
+   - WebSocket 推事件
+   - 智能气泡显示
+   - 点击按钮回调
+   - 提供 mock 推送脚本
+
+3. **再接 miniClaw / 飞书**
+   - miniClaw 负责把飞书消息转成通用事件
+   - DyberPet 不直接理解飞书，只理解宠物事件协议
+   - 飞书能力作为插件实现
+
+### 设计原则
+
+- **DyberPet 不直接绑定飞书业务字段**：飞书字段在 miniClaw 内转换成通用事件。
+- **外部服务不可用时 DyberPet 仍可运行**：按钮回调失败只静默忽略或提示，不阻塞宠物。
+- **原宠物功能不被破坏**：智能气泡与原普通气泡分离实现。
+- **优先做闭环，不先做复杂 Agent**：先做到“事件进来 → 宠物表现 → 用户操作 → 外部回调”。
+- **插件化扩展**：新软件接入时只需要生产通用事件。
 
 ## 快速开始
 
-### 1. 安装依赖
+### 启动 DyberPet
 
 ```bash
-pip install -r requirements.txt
+python DyberPet-main/run_DyberPet.py
 ```
 
-### 2. 配置
+如果已运行一个实例，程序会提示：
 
-创建 `.env` 文件：
-
-```env
-# 日志级别
-LOG_LEVEL=debug
-
-# 是否使用话题回复
-USE_TOPIC_REPLY=false
-
-# 是否使用流式回复
-USE_STREAM=false
-
-# 飞书配置
-FEISHU_APP_ID=cli_xxxxxxxxxxxxxx
-FEISHU_APP_SECRET=xxxxxxxxxxxxxxxx
-
-# AI 提供商（anthropic 或 openai）
-AI_PROVIDER=anthropic
-
-# Claude 配置（AI_PROVIDER=anthropic 时使用）
-CLAUDE_API_KEY=sk-ant-xxxxxxxxxx
-CLAUDE_MODEL=claude-sonnet-4-6
-CLAUDE_BASE_URL=                   # 可选，自定义 API 地址
-
-# OpenAI 配置（AI_PROVIDER=openai 时使用）
-OPENAI_API_KEY=sk-xxxxxxxxxx
-OPENAI_MODEL=gpt-4o
-OPENAI_BASE_URL=                   # 可选，兼容 API 地址
-
-# 系统提示词（可选）
-SYSTEM_PROMPT=你是一个聪明、高效的 AI 助手。请直接回答用户的问题，不要说废话。
-
-# 对话上下文轮数
-MAX_HISTORY_TURNS=10
+```text
+Another instance is already running, quitting.
 ```
 
-### 3. 运行
+### 配置大模型
+
+打开 DyberPet 右键菜单：
+
+```text
+System → 大模型
+```
+
+填写：
+
+- API 地址，例如 `https://api.openai.com/v1`
+- API Key
+- 模型名，例如 `gpt-4o-mini`、`deepseek-chat`、`qwen-plus`
+- 最大 Token
+- 宠物 System Prompt
+
+### 启动 miniClaw 后端
 
 ```bash
 python main.py
 ```
 
-## 项目结构
+miniClaw 当前仍主要承担飞书 AI 机器人能力。后续会逐步改造成 DyberPet 的可选事件源和插件后端。
 
-```
-python-version/
-├── main.py                  # 主程序入口
-├── config.py                # 配置管理（.env / config.toml）
-├── ai_client.py             # AI 客户端抽象基类
-├── claude_client.py         # Anthropic Claude 实现
-├── openai_client.py         # OpenAI 实现
-├── link_service.py          # 核心业务逻辑
-├── feishu/
-│   ├── feishu_api.py        # 飞书 API 客户端
-│   ├── websocket.py         # WebSocket 监听（含消息去重）
-│   ├── protobuf.py          # 飞书 WS protobuf 协议解析
-│   └── doc_client.py        # 飞书云文档内容提取
-├── store/
-│   └── resource_store.py    # 资源文件存储（SHA256 去重）
-└── agent/
-    ├── feishu_chat.py       # 主路由 Agent（function calling 分发）
-    └── skill/
-        ├── doc_reader.py    # 技能：飞书文档解读
-        ├── feishu_mermaid.py  # 技能：图片转 Mermaid
-        └── tts_reply.py     # 技能：文字转语音 (腾讯云 TTS)
-```
+## miniClaw 原有飞书 AI 能力
 
-## 配置说明
+当前保留：
 
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `AI_PROVIDER` | AI 提供商 (`anthropic` / `openai`) | `anthropic` |
-| `USE_STREAM` | 是否使用流式回复 | `true` |
-| `USE_TOPIC_REPLY` | 是否使用话题回复 | `true` |
-| `MAX_HISTORY_TURNS` | 对话上下文轮数 | `10` |
-| `LOG_LEVEL` | 日志级别 | `info` |
-| `FEISHU_APP_ID` | 飞书应用 ID | - |
-| `FEISHU_APP_SECRET` | 飞书应用密钥 | - |
-| `CLAUDE_API_KEY` | Claude API Key | - |
-| `CLAUDE_MODEL` | Claude 模型 | `claude-sonnet-4-6` |
-| `CLAUDE_BASE_URL` | Claude 自定义地址 | - |
-| `OPENAI_API_KEY` | OpenAI API Key | - |
-| `OPENAI_MODEL` | OpenAI 模型 | `gpt-4o` |
-| `OPENAI_BASE_URL` | OpenAI 兼容地址 | - |
+- 飞书 WebSocket 实时消息监听
+- Anthropic / OpenAI 双 provider
+- Function Calling 技能路由
+- 流式 / 非流式回复
+- 话题回复
+- 图片识别
+- 飞书云文档提取
+- Mermaid 自动链接
+- 多轮对话上下文管理
+- 消息去重
+- 定时清理过期数据
 
-## 技能扩展
+原飞书插件设计见：[FEISHU_PET_DESIGN.md](FEISHU_PET_DESIGN.md)
 
-在 `agent/skill/` 下新建 Python 文件即可添加技能：
+## 下一步开发建议
 
-```python
-"""示例技能"""
-ENABLED = True  # 设为 False 可禁用
+新开终端后建议先做这几个：
 
-TOOL_DEF = {
-    "name": "my_skill",
-    "description": "技能描述",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "param": {"type": "string", "description": "参数说明"}
-        },
-        "required": ["param"]
-    }
-}
-
-async def execute(param: str) -> str:
-    return "技能执行结果"
-```
-
-启动时终端会显示技能加载状态：
-```
-==================== 技能加载 ====================
-  [✓] read_feishu_doc
-  [✓] read_image
-==================================================
-```
-
-## 数据目录
-
-```
-~/.acp-link/
-├── sessions.json        # 会话映射
-├── history.json         # 多轮对话历史
-├── data/
-│   ├── seen_ids.json    # 消息去重记录
-│   └── ...              # 资源文件
-├── logs/                # 日志文件
-└── temp/                # 临时文件
-```
+1. 新增一个 `pet_event_mock.py`，本地模拟向 DyberPet 推送事件。
+2. 做本地提醒窗口：内容、时间、重复、到点气泡。
+3. 做今日待办 JSON 存储和简单 UI。
+4. 给智能气泡按钮加本地动作：稍后提醒、复制建议、打开聊天。
+5. 再把 miniClaw 飞书消息转换成通用事件协议。
 
 ## License
 

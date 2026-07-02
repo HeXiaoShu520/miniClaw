@@ -95,6 +95,10 @@ class FeishuChatAgent:
             tool_result = await mod.execute(**tool_input)
 
         # 第二次调用：把技能结果发回模型，得到最终回复
-        return await self.ai.create_with_tool_result(
-            messages, self.tools, result["raw_content"], tool_call["id"], tool_result, system=system_prompt
-        )
+        try:
+            return await self.ai.create_with_tool_result(
+                messages, self.tools, result["raw_content"], tool_call["id"], tool_result, system=system_prompt
+            )
+        except Exception as e:
+            logging.warning(f"工具结果回传不可用，直接返回技能结果: {e}")
+            return str(tool_result)
