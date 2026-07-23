@@ -10,6 +10,7 @@ import random
 import re
 import zlib
 from pathlib import Path
+from uuid import uuid4
 from typing import Awaitable, Callable, Dict, List
 from datetime import datetime, timedelta
 
@@ -425,10 +426,42 @@ class LinkService:
         try:
             messages = await self._prepare_prompt(conv_key, chat_id, text, is_new=False)
 
+            surface_id = f"desktop-reply-{uuid4().hex}"
+            await send_event({
+                "version": "1.0",
+                "type": "surface.show",
+                "source": "miniclaw",
+                "payload": {
+                    "surface_id": surface_id,
+                    "kind": "bubble",
+                    "title": "miniClaw",
+                    "content": "",
+                    "streaming": True,
+                    "timeout_ms": 60000,
+                    "metadata": metadata or {},
+                },
+            })
+
             if self.config.use_stream:
                 full_text = ""
+                last_update = asyncio.get_event_loop().time()
                 async for chunk in self.ai.stream(messages, system=self.config.system_prompt):
                     full_text += chunk
+                    now = asyncio.get_event_loop().time()
+                    if now - last_update >= 0.15:
+                        await send_event({
+                            "version": "1.0",
+                            "type": "surface.update",
+                            "source": "miniclaw",
+                            "payload": {
+                                "surface_id": surface_id,
+                                "content": full_text,
+                                "done": False,
+                                "timeout_ms": 60000,
+                                "metadata": metadata or {},
+                            },
+                        })
+                        last_update = now
             else:
                 full_text = await self.agent.run(
                     messages,
@@ -445,12 +478,12 @@ class LinkService:
 
             await send_event({
                 "version": "1.0",
-                "type": "surface.show",
+                "type": "surface.update",
                 "source": "miniclaw",
                 "payload": {
-                    "kind": "bubble",
-                    "title": "miniClaw",
+                    "surface_id": surface_id,
                     "content": full_text,
+                    "done": True,
                     "timeout_ms": 10000,
                     "metadata": metadata or {},
                 },
