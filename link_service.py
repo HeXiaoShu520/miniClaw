@@ -10,7 +10,7 @@ import random
 import re
 import zlib
 from pathlib import Path
-from typing import Dict, List
+from typing import Awaitable, Callable, Dict, List
 from datetime import datetime, timedelta
 
 from config import AppConfig
@@ -397,6 +397,83 @@ class LinkService:
 
         # 这里其实不用再返回出去了，直接拿 self.conversations[conv_key]
         return history.copy()
+
+    async def handle_desktop_command(
+        self,
+        conv_key: str,
+        text: str,
+        send_event: Callable[[dict], Awaitable[None]],
+        metadata: dict | None = None,
+    ) -> str:
+        """处理 miniPet 桌宠消息，不触碰飞书回复链路。"""
+        text = (text or "").strip()
+        if not text:
+            await send_event({
+                "version": "1.0",
+                "type": "surface.show",
+                "source": "miniclaw",
+                "payload": {
+                    "kind": "bubble",
+                    "title": "miniClaw",
+                    "content": "我没有收到要处理的内容。",
+                    "timeout_ms": 6000,
+                },
+            })
+            return ""
+
+        chat_id = conv_key
+        try:
+            messages = await self._prepare_prompt(conv_key, chat_id, text, is_new=False)
+
+            if self.config.use_stream:
+                full_text = ""
+                async for chunk in self.ai.stream(messages, system=self.config.system_prompt):
+                    full_text += chunk
+            else:
+                full_text = await self.agent.run(
+                    messages,
+                    system_prompt=self.config.system_prompt,
+                    chat_id=chat_id,
+                )
+
+            full_text = _append_mermaid_links((full_text or "").strip())
+            if not full_text:
+                full_text = "(无响应)"
+
+            self.conversations[conv_key].append({"role": "assistant", "content": [self.ai.text_block(full_text)]})
+            self._save_history()
+
+            await send_event({
+                "version": "1.0",
+                "type": "surface.show",
+                "source": "miniclaw",
+                "payload": {
+                    "kind": "bubble",
+                    "title": "miniClaw",
+                    "content": full_text,
+                    "timeout_ms": 10000,
+                    "metadata": metadata or {},
+                },
+            })
+            return full_text
+        except Exception as e:
+            logging.error(f"桌宠消息处理失败: {e}", exc_info=True)
+            if conv_key in self.conversations and self.conversations[conv_key]:
+                self.conversations[conv_key].pop()
+                self._save_history()
+            await send_event({
+                "version": "1.0",
+                "type": "surface.show",
+                "source": "miniclaw",
+                "payload": {
+                    "kind": "bubble",
+                    "title": "miniClaw 出错了",
+                    "content": "处理失败，请稍后重试",
+                    "timeout_ms": 8000,
+                    "metadata": metadata or {},
+                },
+            })
+            return ""
 
     async def _stream_reply(self, conv_key: str, reply_msg_id: str, chat_id: str, text: str, is_new: bool,
                             image_key: str = None, message_id: str = None):

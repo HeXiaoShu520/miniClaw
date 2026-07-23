@@ -43,6 +43,9 @@ class AppConfig(BaseModel):
     admin_open_id: str | None = None
     admin_online_msg: str | None = "✅ 机器人已上线"
     admin_offline_msg: str | None = "⚠️ 机器人已下线"
+    desktop_enabled: bool = True
+    desktop_host: str = "127.0.0.1"
+    desktop_port: int = 18889
     feishu: FeishuConfig
     claude: ClaudeConfig | None = None
     openai: OpenAIConfig | None = None
@@ -75,6 +78,9 @@ class AppConfig(BaseModel):
             admin_open_id=env_vars.get("ADMIN_OPEN_ID") or None,
             admin_online_msg=env_vars.get("ADMIN_ONLINE_MSG") or None,
             admin_offline_msg=env_vars.get("ADMIN_OFFLINE_MSG") or None,
+            desktop_enabled=env_vars.get("DESKTOP_API_ENABLED", "true").lower() == "true",
+            desktop_host=env_vars.get("DESKTOP_API_HOST", "127.0.0.1"),
+            desktop_port=int(env_vars.get("DESKTOP_API_PORT", "18889")),
             feishu=FeishuConfig(
                 app_id=env_vars["FEISHU_APP_ID"],
                 app_secret=env_vars["FEISHU_APP_SECRET"]

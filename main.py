@@ -13,6 +13,7 @@ from config import AppConfig
 from feishu.feishu_api import FeishuClient
 from feishu.websocket import FeishuWebSocket
 from link_service import LinkService
+from pet_gateway import run_pet_gateway
 
 
 async def cleanup_old_logs(log_dir: Path, retention_days: int):
@@ -167,8 +168,16 @@ async def main():
                 logging.error(f"WebSocket 断开: {e}, 5秒后重连...")
                 await asyncio.sleep(5)
 
+    async def run_pet_api():
+        """miniPet 本地网关任务，失败不影响飞书链路。"""
+        try:
+            await run_pet_gateway(service, host=config.desktop_host, port=config.desktop_port)
+        except Exception as e:
+            logging.error(f"miniPet 网关启动失败: {e}", exc_info=True)
+
     ws_task = asyncio.create_task(run_ws())
     cleanup_task = asyncio.create_task(run_cleanup(service, config))
+    pet_task = asyncio.create_task(run_pet_api()) if config.desktop_enabled else None
 
     # 等待关机信号
     stop_event = asyncio.Event()
@@ -191,6 +200,9 @@ async def main():
 
     # 清理资源
     cleanup_task.cancel()
+    ws_task.cancel()
+    if pet_task:
+        pet_task.cancel()
     service.save_sessions()
 
     # 通知管理员下线
