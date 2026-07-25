@@ -21,7 +21,6 @@ USER_COMMAND = "user.command"
 USER_ACTION = "user.action"
 USER_INPUT = "user.input"
 USER_DROP = "user.drop"
-AGENT_STATE = "agent.state"
 SURFACE_SHOW = "surface.show"
 
 
@@ -68,6 +67,7 @@ async def _handle_client_event(service: LinkService, client_id: str, event: dict
                 "kind": "desktop-agent",
             },
             "protocol": "minipet.v1",
+            "accepted_surface_kinds": ["card"],
         }, request_id)
         return
 
@@ -83,28 +83,19 @@ async def _handle_client_event(service: LinkService, client_id: str, event: dict
         }
         metadata.update((event.get("payload") or {}).get("metadata") or {})
 
-        await _send_json(send_event, AGENT_STATE, {
-            "state": "working",
-            "title": "miniClaw",
-            "text": "我在处理...",
-        }, request_id)
-
         if text:
             await service.handle_desktop_command(_conv_key(client_id, event), text, send_event, metadata)
         else:
             await _send_json(send_event, SURFACE_SHOW, {
-                "kind": "bubble",
+                "kind": "card",
                 "title": "miniClaw",
                 "content": "这个动作暂时还没有可处理的文本内容。",
+                "status": "done",
+                "done": True,
                 "timeout_ms": 6000,
                 "metadata": metadata,
             }, request_id)
 
-        await _send_json(send_event, AGENT_STATE, {
-            "state": "done",
-            "title": "miniClaw",
-            "text": "处理完成",
-        }, request_id)
         return
 
     logging.debug(f"[pet_gateway] 忽略未知事件: {event_type}")
@@ -140,9 +131,10 @@ def create_app(service: LinkService) -> FastAPI:
                     event = json.loads(raw)
                 except Exception:
                     await _send_json(send_event, SURFACE_SHOW, {
-                        "kind": "bubble",
+                        "kind": "card",
                         "title": "miniClaw",
                         "content": "收到的消息不是有效 JSON。",
+                        "status": "failed",
                         "timeout_ms": 6000,
                     })
                     continue

@@ -408,15 +408,18 @@ class LinkService:
     ) -> str:
         """处理 miniPet 桌宠消息，不触碰飞书回复链路。"""
         text = (text or "").strip()
+        logging.info(f"[pet_gateway] 收到 miniPet 文本: {text!r}")
         if not text:
             await send_event({
                 "version": "1.0",
                 "type": "surface.show",
                 "source": "miniclaw",
                 "payload": {
-                    "kind": "bubble",
+                    "kind": "card",
                     "title": "miniClaw",
                     "content": "我没有收到要处理的内容。",
+                    "status": "done",
+                    "done": True,
                     "timeout_ms": 6000,
                 },
             })
@@ -433,11 +436,11 @@ class LinkService:
                 "source": "miniclaw",
                 "payload": {
                     "surface_id": surface_id,
-                    "kind": "bubble",
+                    "kind": "card",
                     "title": "miniClaw",
-                    "content": "",
-                    "streaming": True,
-                    "timeout_ms": 60000,
+                    "content": "正在生成回复...",
+                    "status": "streaming",
+                    "timeout_ms": 0,
                     "metadata": metadata or {},
                 },
             })
@@ -456,8 +459,9 @@ class LinkService:
                             "payload": {
                                 "surface_id": surface_id,
                                 "content": full_text,
+                                "status": "streaming",
                                 "done": False,
-                                "timeout_ms": 60000,
+                                "timeout_ms": 0,
                                 "metadata": metadata or {},
                             },
                         })
@@ -482,7 +486,9 @@ class LinkService:
                 "source": "miniclaw",
                 "payload": {
                     "surface_id": surface_id,
+                    "kind": "card",
                     "content": full_text,
+                    "status": "done",
                     "done": True,
                     "timeout_ms": 10000,
                     "metadata": metadata or {},
@@ -499,9 +505,10 @@ class LinkService:
                 "type": "surface.show",
                 "source": "miniclaw",
                 "payload": {
-                    "kind": "bubble",
+                    "kind": "card",
                     "title": "miniClaw 出错了",
                     "content": "处理失败，请稍后重试",
+                    "status": "failed",
                     "timeout_ms": 8000,
                     "metadata": metadata or {},
                 },

@@ -137,38 +137,132 @@ miniClaw/
             └── LLMSettingUI.py       # 大模型设置页
 ```
 
-## 通用事件协议
+## miniPet 通用卡片协议
 
-完整协议见：[DyberPet-main/PET_EVENT_PROTOCOL.md](DyberPet-main/PET_EVENT_PROTOCOL.md)
+miniClaw 通过 `pet_gateway.py` 暴露 miniPet 网关：
 
-最常用的 `message` 事件：
+```text
+ws://127.0.0.1:18889/ws/minipet
+```
+
+miniPet 连接后发送 `session.hello`，miniClaw 回 `session.ready`，并声明只接受通用卡片：
 
 ```json
 {
-  "type": "message",
-  "title": "产品群",
-  "sender": "张三",
-  "content": "下午四点能给个方案吗？",
-  "summary": "产品群在催方案",
-  "suggestion": "可以，我四点前发初版。",
-  "priority": "high",
-  "is_at_me": true,
-  "pet_action": "alert",
-  "timeout": 12,
-  "actions": [
-    { "id": "send", "type": "send_message", "label": "发送建议" },
-    { "id": "later", "type": "later", "label": "稍后处理" },
-    { "id": "ignore", "type": "ignore", "label": "忽略" }
-  ]
+  "type": "session.ready",
+  "source": "miniclaw",
+  "payload": {
+    "server": {"name": "miniClaw", "kind": "desktop-agent"},
+    "protocol": "minipet.v1",
+    "accepted_surface_kinds": ["card"]
+  }
 }
 ```
 
-DyberPet 对事件的处理原则：
+miniPet 发给 miniClaw 的用户输入固定为文字命令：
 
-- `message`：显示智能气泡，并按优先级触发宠物动作。
-- `bubble`：显示普通文本气泡。
-- `action`：只触发宠物动作。
-- 用户点击按钮时：尝试回调 `/actions/execute`，失败不影响 DyberPet 独立运行。
+```json
+{
+  "type": "user.command",
+  "source": "minipet",
+  "payload": {
+    "text": "帮我总结今天需要处理的事",
+    "content": "帮我总结今天需要处理的事",
+    "mode": "text",
+    "surface": "pet_popup"
+  }
+}
+```
+
+miniClaw 返回内容统一使用 `surface.show` / `surface.update` / `surface.close`，`kind` 固定为 `card`。普通文字、流式回复、选择、输入和按钮都放进同一种卡片 payload：
+
+```text
+Card
+├─ elements：展示内容，普通文本、Markdown、分隔线等
+├─ controls：输入/选择控件，文本框、单选、多选、自定义输入等
+└─ actions：按钮，提交、取消、确认、复制、重试等
+```
+
+流式回复示例：
+
+```json
+{
+  "type": "surface.show",
+  "source": "miniclaw",
+  "payload": {
+    "surface_id": "desktop-reply-1",
+    "kind": "card",
+    "title": "miniClaw",
+    "content": "正在生成回复...",
+    "status": "streaming",
+    "timeout_ms": 0
+  }
+}
+```
+
+```json
+{
+  "type": "surface.update",
+  "source": "miniclaw",
+  "payload": {
+    "surface_id": "desktop-reply-1",
+    "kind": "card",
+    "content": "这是最终回复。",
+    "status": "done",
+    "done": true,
+    "timeout_ms": 10000
+  }
+}
+```
+
+带选择、自定义输入和按钮的卡片示例：
+
+```json
+{
+  "type": "surface.show",
+  "source": "miniclaw",
+  "payload": {
+    "surface_id": "plan-choice-1",
+    "kind": "card",
+    "title": "请选择方案",
+    "elements": [
+      {"type": "markdown", "content": "请选择一种实现方式，也可以输入其他方案。"}
+    ],
+    "controls": [
+      {
+        "id": "plan",
+        "type": "radio_group",
+        "label": "方案",
+        "options": [
+          {"id": "simple", "label": "简单方案"},
+          {"id": "full", "label": "完整方案"}
+        ],
+        "allow_custom": true
+      }
+    ],
+    "actions": [
+      {"id": "cancel", "label": "取消", "style": "quiet"},
+      {"id": "submit", "label": "提交", "style": "primary"}
+    ]
+  }
+}
+```
+
+用户点击按钮后，miniPet 回传 `user.action`；如果卡片包含 `controls`，控件值会放在 `payload.values`：
+
+```json
+{
+  "type": "user.action",
+  "source": "minipet",
+  "payload": {
+    "surface_id": "plan-choice-1",
+    "action_id": "submit",
+    "values": {"plan": "simple"},
+    "action": {"id": "submit", "label": "提交", "style": "primary"},
+    "metadata": {}
+  }
+}
+```
 
 ## 预期特性路线
 
