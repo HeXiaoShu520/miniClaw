@@ -121,6 +121,8 @@ async def main():
     logging.getLogger('httpcore.connection').setLevel(logging.WARNING)
     logging.getLogger('httpcore.proxy').setLevel(logging.WARNING)
     logging.getLogger('anthropic._base_client').setLevel(logging.WARNING)
+    logging.getLogger('openai').setLevel(logging.WARNING)
+    logging.getLogger('openai._base_client').setLevel(logging.WARNING)
     logging.getLogger('httpx').setLevel(logging.WARNING)
 
     logging.basicConfig(
@@ -194,15 +196,19 @@ async def main():
             loop.add_signal_handler(sig, signal_handler)
     except NotImplementedError:
         # Windows 不支持 add_signal_handler
-        signal.signal(signal.SIGINT, lambda s, f: stop_event.set())
+        signal.signal(signal.SIGINT, lambda s, f: signal_handler())
 
     await stop_event.wait()
 
     # 清理资源
-    cleanup_task.cancel()
-    ws_task.cancel()
+    tasks = [cleanup_task, ws_task]
     if pet_task:
-        pet_task.cancel()
+        tasks.append(pet_task)
+
+    for task in tasks:
+        task.cancel()
+
+    await asyncio.gather(*tasks, return_exceptions=True)
     service.save_sessions()
 
     # 通知管理员下线

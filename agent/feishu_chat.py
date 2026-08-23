@@ -91,6 +91,20 @@ class FeishuChatAgent:
             tool_result = await mod.execute(text, cid, self.feishu, self.ai)
             # tts_reply 直接发送音频，无需第二次 AI 调用
             return tool_result
+        elif tool_name == "meme_search":
+            cid = tool_input.get("chat_id") or chat_id or ""
+            tool_result = await mod.execute(
+                query=tool_input.get("query", ""),
+                chat_id=cid,
+                feishu_client=self.feishu,
+                index=tool_input.get("index", 1),
+                count=tool_input.get("count", 5),
+                send_count=tool_input.get("send_count", 1),
+                extra_keywords=tool_input.get("extra_keywords"),
+                image_shape=tool_input.get("image_shape", "方形"),
+            )
+            # meme_search 会直接发送图片，无需第二次 AI 调用
+            return tool_result
         else:
             tool_result = await mod.execute(**tool_input)
 

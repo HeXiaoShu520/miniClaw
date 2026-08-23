@@ -354,7 +354,7 @@ class LinkService:
         # 普通链接直接返回
         return link
 
-    async def _prepare_prompt(self, conv_key: str, chat_id: str, text: str, is_new: bool) -> List[dict]:
+    async def _prepare_prompt(self, conv_key: str, chat_id: str, text: str, is_new: bool, images: list[dict] | None = None) -> List[dict]:
         """
         准备发送给 Claude 的 prompt 内容结构
         这里使用标准 [{"role": "user/assistant", "content": [...]}, ...] 结构
@@ -373,8 +373,9 @@ class LinkService:
 
         history = self.conversations[conv_key]
 
-        # 当前用户的新输入块（目前只支持文本，如需支持图片需要另外聚合单条消息的图片，这比较复杂）
-        user_content = [self.ai.text_block(text)]
+        user_content = [self.ai.text_block(text or "请处理图片内容")]
+        for image in images or []:
+            user_content.append(self.ai.image_block(image["data"], image.get("mime_type") or "image/png"))
 
         # 不再走飞书的 aggregate_topic 接口拉取漫游记录。
         # 上下文全权交由本地 history 接管（重启也会从 history.json 恢复）
@@ -405,21 +406,20 @@ class LinkService:
         text: str,
         send_event: Callable[[dict], Awaitable[None]],
         metadata: dict | None = None,
+        images: list[dict] | None = None,
     ) -> str:
         """处理 miniPet 桌宠消息，不触碰飞书回复链路。"""
         text = (text or "").strip()
-        logging.info(f"[pet_gateway] 收到 miniPet 文本: {text!r}")
-        if not text:
+        images = images or []
+        logging.info(f"[pet_gateway] 收到 miniPet 文本: {text!r}, images={len(images)}")
+        if not text and not images:
             await send_event({
                 "version": "1.0",
                 "type": "surface.show",
                 "source": "miniclaw",
                 "payload": {
-                    "kind": "card",
-                    "title": "miniClaw",
                     "content": "我没有收到要处理的内容。",
                     "status": "done",
-                    "done": True,
                     "timeout_ms": 6000,
                 },
             })
@@ -427,7 +427,7 @@ class LinkService:
 
         chat_id = conv_key
         try:
-            messages = await self._prepare_prompt(conv_key, chat_id, text, is_new=False)
+            messages = await self._prepare_prompt(conv_key, chat_id, text, is_new=False, images=images)
 
             surface_id = f"desktop-reply-{uuid4().hex}"
             await send_event({
@@ -436,8 +436,6 @@ class LinkService:
                 "source": "miniclaw",
                 "payload": {
                     "surface_id": surface_id,
-                    "kind": "card",
-                    "title": "miniClaw",
                     "content": "正在生成回复...",
                     "status": "streaming",
                     "timeout_ms": 0,
@@ -460,7 +458,6 @@ class LinkService:
                                 "surface_id": surface_id,
                                 "content": full_text,
                                 "status": "streaming",
-                                "done": False,
                                 "timeout_ms": 0,
                                 "metadata": metadata or {},
                             },
@@ -477,6 +474,9 @@ class LinkService:
             if not full_text:
                 full_text = "(无响应)"
 
+            preview = full_text.replace("\n", " ")[:100]
+            logging.info(f"[pet_gateway] miniPet 回复预览({len(full_text)}字): {preview!r}")
+
             self.conversations[conv_key].append({"role": "assistant", "content": [self.ai.text_block(full_text)]})
             self._save_history()
 
@@ -486,10 +486,8 @@ class LinkService:
                 "source": "miniclaw",
                 "payload": {
                     "surface_id": surface_id,
-                    "kind": "card",
                     "content": full_text,
                     "status": "done",
-                    "done": True,
                     "timeout_ms": 10000,
                     "metadata": metadata or {},
                 },
@@ -505,8 +503,6 @@ class LinkService:
                 "type": "surface.show",
                 "source": "miniclaw",
                 "payload": {
-                    "kind": "card",
-                    "title": "miniClaw 出错了",
                     "content": "处理失败，请稍后重试",
                     "status": "failed",
                     "timeout_ms": 8000,

@@ -230,6 +230,36 @@ class FeishuClient:
         if not resp.success():
             logging.error(f"发送消息给用户失败: {resp.code}, {resp.msg}")
 
+    async def send_image(self, chat_id: str, image_data: bytes, filename: str = "image.jpg", content_type: str = "image/jpeg") -> str:
+        """上传图片并发送到会话，返回消息 ID"""
+        token = await self.get_access_token()
+        session = await self._get_session()
+
+        form = aiohttp.FormData()
+        form.add_field("image_type", "message")
+        form.add_field("image", image_data, filename=filename, content_type=content_type)
+        async with session.post(
+            "https://open.feishu.cn/open-apis/im/v1/images",
+            headers={"Authorization": f"Bearer {token}"},
+            data=form
+        ) as resp:
+            result = await resp.json()
+            if result.get("code") != 0:
+                raise Exception(f"上传图片失败: {result}")
+            image_key = result["data"]["image_key"]
+
+        req = CreateMessageRequest.builder().receive_id_type("chat_id").request_body(
+            CreateMessageRequestBody.builder()
+            .receive_id(chat_id)
+            .msg_type("image")
+            .content(json.dumps({"image_key": image_key}))
+            .build()
+        ).build()
+        resp = self.client.im.v1.message.create(req)
+        if not resp.success():
+            raise Exception(f"发送图片失败: {resp.code}, {resp.msg}")
+        return resp.data.message_id
+
     async def send_audio(self, chat_id: str, audio_data: bytes) -> str:
         """上传音频并发送到会话，返回消息 ID"""
         token = await self.get_access_token()

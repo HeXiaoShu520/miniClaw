@@ -145,7 +145,22 @@ miniClaw 通过 `pet_gateway.py` 暴露 miniPet 网关：
 ws://127.0.0.1:18889/ws/minipet
 ```
 
-miniPet 连接后发送 `session.hello`，miniClaw 回 `session.ready`，并声明只接受通用卡片：
+设置页点击“检测 MiniPet 协议”时，miniPet 会先发送 `session.probe`，miniClaw 回 `session.probe.result`，用于确认后端支持 MiniPet 协议，但不进入正式会话：
+
+```json
+{
+  "type": "session.probe.result",
+  "source": "miniclaw",
+  "payload": {
+    "ok": true,
+    "server": {"name": "miniClaw", "kind": "desktop-agent"},
+    "protocol": "minipet.v1",
+    "accepted_surface_kinds": ["card"]
+  }
+}
+```
+
+miniPet 正式连接后发送 `session.hello`，miniClaw 回 `session.ready`，并声明只接受通用卡片：
 
 ```json
 {
@@ -159,17 +174,42 @@ miniPet 连接后发送 `session.hello`，miniClaw 回 `session.ready`，并声�
 }
 ```
 
-miniPet 发给 miniClaw 的用户输入固定为文字命令：
+miniPet 发给 miniClaw 的用户输入固定为 `user.input`：
 
 ```json
 {
-  "type": "user.command",
+  "type": "user.input",
   "source": "minipet",
   "payload": {
     "text": "帮我总结今天需要处理的事",
-    "content": "帮我总结今天需要处理的事",
+    "preview": "帮我总结今天需要处理的事",
     "mode": "text",
     "surface": "pet_popup"
+  }
+}
+```
+
+带图片时，miniPet 会把图片作为 base64 附件放在 `attachments`。miniClaw 会自动解码并传给当前大模型：
+
+```json
+{
+  "type": "user.input",
+  "source": "minipet",
+  "payload": {
+    "text": "帮我看看这张图",
+    "preview": "帮我看看这张图\n[图片] × 1",
+    "mode": "text",
+    "surface": "pet_popup",
+    "attachments": [
+      {
+        "type": "image",
+        "name": "image_1.png",
+        "mime_type": "image/png",
+        "encoding": "base64",
+        "data": "iVBORw0KGgo...",
+        "source": "message"
+      }
+    ]
   }
 }
 ```
